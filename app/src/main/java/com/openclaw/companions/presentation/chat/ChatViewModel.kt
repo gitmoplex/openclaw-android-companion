@@ -45,9 +45,7 @@ class ChatViewModel @Inject constructor(
         )
 
         viewModelScope.launch {
-            // Save locally
             messageDao.insertMessage(message.toEntity())
-            // Send over WebSocket
             try {
                 webSocketService.sendMessage(message)
             } catch (e: Exception) {
@@ -57,7 +55,6 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendImage(uri: Uri) {
-        // TODO: Implement image upload
         val message = Message(
             id = UUID.randomUUID().toString(),
             content = "",
@@ -73,6 +70,22 @@ class ChatViewModel @Inject constructor(
         )
         viewModelScope.launch {
             messageDao.insertMessage(message.toEntity())
+        }
+    }
+
+    fun startVoiceRecording() {
+        _uiState.update { it.copy(isRecording = true) }
+        // TODO: Start audio recording
+    }
+
+    fun stopVoiceRecording() {
+        _uiState.update { it.copy(isRecording = false) }
+        // TODO: Stop recording and send
+    }
+
+    fun clearChat() {
+        viewModelScope.launch {
+            messageDao.clearConversation()
         }
     }
 

@@ -14,30 +14,76 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.openclaw.companions.domain.model.SenderType
+import com.openclaw.companions.presentation.components.VoiceInputButton
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel(),
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToPairing: () -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-
     var messageText by remember { mutableStateOf("") }
+    var showConnectionMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("OpenClaw") },
+                title = {
+                    Column {
+                        Text("OpenClaw")
+                        Text(
+                            when (connectionState) {
+                                is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connected -> "Connected"
+                                is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connecting -> "Connecting..."
+                                is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Error -> "Error"
+                                else -> "Disconnected"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = when (connectionState) {
+                                is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connected ->
+                                    MaterialTheme.colorScheme.tertiary
+                                is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connecting ->
+                                    MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.error
+                            }
+                        )
+                    }
+                },
                 actions = {
                     ConnectionStatusIndicator(connectionState)
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, "Settings")
+                    }
+                    IconButton(onClick = { showConnectionMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "Menu")
+                    }
+                    DropdownMenu(
+                        expanded = showConnectionMenu,
+                        onDismissRequest = { showConnectionMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Pair with Gateway") },
+                            onClick = {
+                                onNavigateToPairing()
+                                showConnectionMenu = false
+                            },
+                            leadingIcon = { Icon(Icons.Default.QrCodeScanner, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Clear Chat") },
+                            onClick = {
+                                viewModel.clearChat()
+                                showConnectionMenu = false
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, null) }
+                        )
                     }
                 }
             )
@@ -52,7 +98,9 @@ fun ChatScreen(
                         messageText = ""
                     }
                 },
-                isRecording = uiState.isRecording
+                isRecording = uiState.isRecording,
+                onStartRecording = { viewModel.startVoiceRecording() },
+                onStopRecording = { viewModel.stopVoiceRecording() }
             )
         }
     ) { padding ->
@@ -62,7 +110,10 @@ fun ChatScreen(
                 .padding(padding)
         ) {
             if (messages.isEmpty()) {
-                EmptyChatPlaceholder()
+                EmptyChatPlaceholder(
+                    isConnected = connectionState is
+                        com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connected
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -86,6 +137,14 @@ fun ChatScreen(
             }
         }
     }
+
+    // Error snackbar
+    uiState.error?.let { error ->
+        LaunchedEffect(error) {
+            // Show error and clear it
+            viewModel.clearError()
+        }
+    }
 }
 
 @Composable
@@ -101,20 +160,28 @@ fun MessageBubble(
 
     val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
 
-    Box(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = alignment
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Surface(
             color = backgroundColor,
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            Text(
-                text = message.content,
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (message.isPending) {
+                    Text(
+                        text = "Sending...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
         }
     }
 }
@@ -124,7 +191,9 @@ fun ChatInputBar(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    isRecording: Boolean
+    isRecording: Boolean,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit
 ) {
     Surface(
         tonalElevation = 3.dp,
@@ -133,31 +202,34 @@ fun ChatInputBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            IconButton(onClick = { /* TODO: Camera */ }) {
-                Icon(Icons.Default.CameraAlt, "Camera")
-            }
-
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Message OpenClaw...") },
-                singleLine = true
+                singleLine = true,
+                trailingIcon = {
+                    VoiceInputButton(
+                        isRecording = isRecording,
+                        onStartRecording = onStartRecording,
+                        onStopRecording = { data ->
+                            onStopRecording()
+                            // TODO: Send voice data
+                        },
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
             )
 
-            IconButton(onClick = { /* TODO: Voice */ }) {
-                Icon(
-                    if (isRecording) Icons.Default.Mic else Icons.Default.MicNone,
-                    "Voice",
-                    tint = if (isRecording) MaterialTheme.colorScheme.error else LocalContentColor.current
-                )
-            }
-
-            IconButton(onClick = onSend, enabled = value.isNotBlank()) {
+            FilledIconButton(
+                onClick = onSend,
+                enabled = value.isNotBlank(),
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(Icons.Default.Send, "Send")
             }
         }
@@ -165,7 +237,9 @@ fun ChatInputBar(
 }
 
 @Composable
-fun ConnectionStatusIndicator(state: com.openclaw.companions.data.remote.WebSocketService.ConnectionState) {
+fun ConnectionStatusIndicator(
+    state: com.openclaw.companions.data.remote.WebSocketService.ConnectionState
+) {
     val color = when (state) {
         is com.openclaw.companions.data.remote.WebSocketService.ConnectionState.Connected ->
             MaterialTheme.colorScheme.tertiary
@@ -175,31 +249,44 @@ fun ConnectionStatusIndicator(state: com.openclaw.companions.data.remote.WebSock
     }
 
     Box(
-        modifier = Modifier
-            .size(12.dp)
-            .padding(2.dp),
+        modifier = Modifier.padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             color = color,
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.size(12.dp)
         ) {}
     }
 }
 
 @Composable
-fun EmptyChatPlaceholder() {
+fun EmptyChatPlaceholder(isConnected: Boolean) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "Say 'Hey OpenClaw' or type a message",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(32.dp)
-        )
+        ) {
+            Icon(
+                Icons.Default.Chat,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = if (isConnected) {
+                    "Say 'Hey OpenClaw' or type a message"
+                } else {
+                    "Not connected to OpenClaw\nTap the menu to pair"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
