@@ -73,7 +73,7 @@ class WakeWordService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("OpenClaw Wake Word")
             .setContentText("Listening for 'Hey OpenClaw'...")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
