@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
@@ -43,7 +44,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.5"
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
     packaging {
         resources {
@@ -85,6 +86,7 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:2.3.7")
     implementation("io.ktor:ktor-client-websockets:2.3.7")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-client-logging:2.3.7")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
 
     // Kotlin Serialization
