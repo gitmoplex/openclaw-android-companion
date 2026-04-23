@@ -1,24 +1,12 @@
 package com.openclaw.companions
 
 import android.app.Application
-import androidx.hilt.work.HiltWorkerFactory
-import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
 
 @HiltAndroidApp
-class OpenClawApplication : Application(), Configuration.Provider {
-
-    @Inject
-    lateinit var workerFactory: HiltWorkerFactory
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
-
+class OpenClawApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Initialize any app-wide services
+        // Initialize app-wide services
     }
 }
